@@ -174,38 +174,3 @@ See [06-KUBERNETES-DEPLOYMENT.md](./06-KUBERNETES-DEPLOYMENT.md) for the complet
 │              Charts, Costs, Alerts, Settings                 │
 └─────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## 💡 Common Questions Quick Answers
-
-| Question | Quick Answer |
-|----------|--------------|
-| Why 4 databases? | Each optimized for its workload (OLTP, cache, analytics, streaming) |
-| Why TypeScript? | Shared types between frontend/backend, faster development |
-| Why Fastify? | 2x faster than Express, better TypeScript support |
-| Why Lua in Redis? | Atomic operations, no race conditions |
-| Why hash API keys? | One-way hash protects even if DB is leaked |
-| Why ClickHouse? | Column-oriented = 100x faster aggregations |
-| What if Redis fails? | Fail-open: allow requests, log warnings |
-| Why Kubernetes? | Auto-scaling (HPA), self-healing, rolling updates |
-| Why not serverless? | Cold starts add latency, need persistent Redis connections |
-
----
-
-## 📈 Success Metrics
-
-After completing this project, you can demonstrate:
-
-- ✅ System design skills (distributed rate limiting)
-- ✅ Database design (multi-tenant, proper indexing)
-- ✅ Security awareness (hashing, encryption, JWT)
-- ✅ Performance optimization (caching, connection pooling)
-- ✅ Modern stack proficiency (TypeScript, Next.js, Fastify)
-- ✅ DevOps knowledge (Docker, Kubernetes, HPA, Ingress)
-- ✅ Infrastructure as Code (declarative manifests, GitOps-ready)
-
----
-
-Good luck with your interviews! 🚀
-
