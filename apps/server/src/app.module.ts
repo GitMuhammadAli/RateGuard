@@ -1,11 +1,14 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_INTERCEPTOR } from "@nestjs/core";
+import { APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
 import configuration from "./config/configuration";
+import { PrismaModule } from "./prisma/prisma.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+
 // TODO: Uncomment as modules are created
-// import { PrismaModule } from "./prisma/prisma.module";
 // import { RedisModule } from "./redis/redis.module";
-// import { AuthModule } from "./modules/auth/auth.module";
 // import { UsersModule } from "./modules/users/users.module";
 // import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
 // import { ApiKeysModule } from "./modules/api-keys/api-keys.module";
@@ -15,8 +18,6 @@ import configuration from "./config/configuration";
 // import { AnalyticsModule } from "./modules/analytics/analytics.module";
 // import { WebhooksModule } from "./modules/webhooks/webhooks.module";
 // import { AdminModule } from "./modules/admin/admin.module";
-// import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
-import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
 @Module({
   imports: [
@@ -27,10 +28,14 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
       envFilePath: [".env.local", ".env"],
     }),
 
+    // Database
+    PrismaModule,
+
+    // Authentication
+    AuthModule,
+
     // TODO: Uncomment as modules are created
-    // PrismaModule,
     // RedisModule,
-    // AuthModule,
     // UsersModule,
     // WorkspacesModule,
     // ApiKeysModule,
@@ -42,11 +47,11 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
     // AdminModule,
   ],
   providers: [
-    // TODO: Uncomment when JwtAuthGuard is created
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: JwtAuthGuard,
-    // },
+    // Global JWT auth guard (use @Public() to skip)
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
     // Global logging interceptor
     {
       provide: APP_INTERCEPTOR,

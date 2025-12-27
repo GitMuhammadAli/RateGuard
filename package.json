@@ -4,16 +4,19 @@
   "private": true,
   "description": "API Rate Limiting Gateway",
   "scripts": {
-    "dev:server": "npm run dev -w @rateguard/server",
-    "dev:web": "npm run dev -w @rateguard/web",
+    "dev": "npm run dev:server & npm run dev:client",
+    "dev:server": "npm run start:dev -w @rateguard/server",
+    "dev:client": "npm run dev -w @rateguard/client",
     "build": "npm run build --workspaces",
+    "build:server": "npm run build -w @rateguard/server",
+    "build:client": "npm run build -w @rateguard/client",
     "docker:up": "docker compose -f docker/compose.yml up -d",
     "docker:down": "docker compose -f docker/compose.yml down",
     "docker:reset": "docker compose -f docker/compose.yml down -v",
     "docker:logs": "docker compose -f docker/compose.yml logs -f",
-    "db:push": "npm run db:push -w @rateguard/db",
-    "db:generate": "npm run db:generate -w @rateguard/db",
-    "db:studio": "npm run db:studio -w @rateguard/db"
+    "db:push": "npm run prisma:migrate -w @rateguard/server",
+    "db:generate": "npm run prisma:generate -w @rateguard/server",
+    "db:studio": "npm run prisma:studio -w @rateguard/server"
   },
   "workspaces": [
     "packages/*",
