@@ -9,8 +9,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import {
   RegisterDto,
   LoginDto,
@@ -24,6 +26,7 @@ interface JwtPayload {
   sub: string;
   email: string;
   type: 'access' | 'refresh';
+  jti?: string; // JWT ID - unique identifier for refresh tokens
 }
 
 interface TokenPair {
@@ -58,6 +61,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -118,8 +122,13 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokenPair(result.user.id, result.user.email, ipAddress);
 
-    // TODO: Send verification email
-    this.logger.log(`User registered: ${result.user.email}, verification token: ${emailVerifyToken}`);
+    // Send verification email
+    await this.emailService.sendVerificationEmail(
+      result.user.email,
+      result.user.fullName,
+      emailVerifyToken
+    );
+    this.logger.log(`User registered: ${result.user.email}`);
 
     return {
       user: {
@@ -215,10 +224,14 @@ export class AuthService {
 
   /**
    * Refresh access token
+   * 
+   * SECURITY: We store a HASH of the refresh token in the database.
+   * The client sends the actual token, we hash it and compare.
+   * This way, even if the database is compromised, tokens can't be used.
    */
   async refreshToken(dto: RefreshTokenDto, ipAddress?: string): Promise<TokenPair> {
     try {
-      // Verify refresh token
+      // 1. Verify JWT signature and structure
       const payload = this.jwtService.verify<JwtPayload>(dto.refreshToken, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
       });
@@ -227,27 +240,54 @@ export class AuthService {
         throw new UnauthorizedException('Invalid token type');
       }
 
-      // Find session
+      // 2. Hash the incoming token to compare with database
+      const tokenHash = this.hashToken(dto.refreshToken);
+
+      // 3. Find session by token hash
       const session = await this.prisma.session.findUnique({
-        where: { refreshToken: dto.refreshToken },
+        where: { refreshToken: tokenHash },
         include: { user: true },
       });
 
-      if (!session || session.revokedAt) {
-        throw new UnauthorizedException('Session expired or revoked');
+      if (!session) {
+        // 🔴 SECURITY: Token not found - might be stolen and already used!
+        // Revoke ALL sessions for this user as a precaution
+        this.logger.warn(`Refresh token reuse detected for user ${payload.sub}`);
+        await this.prisma.session.updateMany({
+          where: { userId: payload.sub, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new UnauthorizedException('Session invalid - all sessions revoked for security');
+      }
+
+      if (session.revokedAt) {
+        // 🔴 SECURITY: Attempting to use revoked token - possible theft!
+        this.logger.warn(`Attempted use of revoked token for user ${session.userId}`);
+        // Revoke ALL sessions as this might be token theft
+        await this.prisma.session.updateMany({
+          where: { userId: session.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new UnauthorizedException('Session revoked - all sessions revoked for security');
       }
 
       if (new Date() > session.expiresAt) {
         throw new UnauthorizedException('Session expired');
       }
 
-      // Rotate refresh token (invalidate old, create new)
+      // 4. Check if IP changed significantly (optional additional security)
+      if (ipAddress && session.ipAddress && session.ipAddress !== ipAddress) {
+        this.logger.warn(`IP change detected for session ${session.id}: ${session.ipAddress} -> ${ipAddress}`);
+        // You could add additional verification here (e.g., require re-authentication)
+      }
+
+      // 5. Rotate token - revoke old, create new
       await this.prisma.session.update({
         where: { id: session.id },
         data: { revokedAt: new Date() },
       });
 
-      // Generate new token pair
+      // 6. Generate new token pair
       return this.generateTokenPair(session.userId, session.user.email, ipAddress);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -262,11 +302,14 @@ export class AuthService {
    */
   async logout(userId: string, refreshToken?: string): Promise<void> {
     if (refreshToken) {
+      // Hash the token to find in database
+      const tokenHash = this.hashToken(refreshToken);
+      
       // Revoke specific session
       await this.prisma.session.updateMany({
         where: {
           userId,
-          refreshToken,
+          refreshToken: tokenHash,
           revokedAt: null,
         },
         data: { revokedAt: new Date() },
@@ -338,8 +381,13 @@ export class AuthService {
       },
     });
 
-    // TODO: Send verification email
-    this.logger.log(`Verification email resent: ${user.email}, token: ${emailVerifyToken}`);
+    // Send verification email
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      user.fullName,
+      emailVerifyToken
+    );
+    this.logger.log(`Verification email resent: ${user.email}`);
 
     return { message: 'Verification email sent' };
   }
@@ -368,8 +416,13 @@ export class AuthService {
       },
     });
 
-    // TODO: Send password reset email
-    this.logger.log(`Password reset requested: ${user.email}, token: ${resetToken}`);
+    // Send password reset email
+    await this.emailService.sendPasswordResetEmail(
+      user.email,
+      user.fullName,
+      resetToken
+    );
+    this.logger.log(`Password reset requested: ${user.email}`);
 
     return { message: 'If your email exists, you will receive a password reset link' };
   }
@@ -409,6 +462,8 @@ export class AuthService {
       }),
     ]);
 
+    // Send confirmation email
+    await this.emailService.sendPasswordChangedEmail(user.email, user.fullName);
     this.logger.log(`Password reset completed: ${user.email}`);
 
     return { message: 'Password reset successfully' };
@@ -446,6 +501,8 @@ export class AuthService {
       }),
     ]);
 
+    // Send confirmation email
+    await this.emailService.sendPasswordChangedEmail(user.email, user.fullName);
     await this.logAuditEvent(userId, 'PASSWORD_CHANGED', 'user', userId, {}, ipAddress);
 
     return { message: 'Password changed successfully' };
@@ -496,6 +553,17 @@ export class AuthService {
   // Private helper methods
   // ========================================
 
+  /**
+   * Hash a token for secure database storage
+   * We use SHA-256 which is fast but secure for this use case
+   */
+  private hashToken(token: string): string {
+    return crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+  }
+
   private async generateTokenPair(
     userId: string,
     email: string,
@@ -503,8 +571,11 @@ export class AuthService {
     userAgent?: string,
     rememberMe?: boolean,
   ): Promise<TokenPair> {
+    // Generate unique JWT ID for refresh token (for tracking)
+    const jti = uuidv4();
+    
     const accessPayload: JwtPayload = { sub: userId, email, type: 'access' };
-    const refreshPayload: JwtPayload = { sub: userId, email, type: 'refresh' };
+    const refreshPayload: JwtPayload = { sub: userId, email, type: 'refresh', jti };
 
     const accessExpiresIn = this.configService.get<string>('jwt.expiresIn') || '15m';
     // Remember me extends refresh token to 30 days (FR-1.8)
@@ -523,11 +594,14 @@ export class AuthService {
     const expiresInMs = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(Date.now() + expiresInMs);
 
-    // Store session
+    // 🔴 SECURITY: Store HASH of refresh token, not the token itself
+    const tokenHash = this.hashToken(refreshToken);
+
+    // Store session with hashed token
     await this.prisma.session.create({
       data: {
         userId,
-        refreshToken,
+        refreshToken: tokenHash,  // ← HASHED, not plain text!
         expiresAt,
         ipAddress,
         userAgent,
@@ -536,7 +610,7 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken,
+      refreshToken,  // ← Client gets the actual token
       expiresIn: this.parseExpiresIn(accessExpiresIn),
     };
   }
@@ -592,4 +666,3 @@ export class AuthService {
     }
   }
 }
-

@@ -4,6 +4,7 @@ import { APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
 import configuration from "./config/configuration";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { EmailModule } from "./modules/email/email.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
@@ -30,6 +31,9 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
     // Database
     PrismaModule,
+
+    // Email
+    EmailModule,
 
     // Authentication
     AuthModule,

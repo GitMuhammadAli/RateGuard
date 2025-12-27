@@ -15,3 +15,4 @@ export interface ThrottleConfig {
 export const Throttle = (limit: number, ttl: number) =>
   SetMetadata(THROTTLE_KEY, { limit, ttl } as ThrottleConfig);
 
+
