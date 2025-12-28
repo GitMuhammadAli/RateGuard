@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import {
@@ -22,20 +21,20 @@ import {
   ChangePasswordDto,
 } from './dto';
 
-interface JwtPayload {
+export interface JwtPayload {
   sub: string;
   email: string;
   type: 'access' | 'refresh';
   jti?: string; // JWT ID - unique identifier for refresh tokens
 }
 
-interface TokenPair {
+export interface TokenPair {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
   user: {
     id: string;
     email: string;
@@ -81,7 +80,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
 
     // Generate email verification token
-    const emailVerifyToken = uuidv4();
+    const emailVerifyToken = crypto.randomUUID();
     const emailVerifyExpiry = new Date(Date.now() + this.TOKEN_EXPIRY_24H);
 
     // Create user in transaction
@@ -370,7 +369,7 @@ export class AuthService {
       throw new BadRequestException('Email already verified');
     }
 
-    const emailVerifyToken = uuidv4();
+    const emailVerifyToken = crypto.randomUUID();
     const emailVerifyExpiry = new Date(Date.now() + this.TOKEN_EXPIRY_24H);
 
     await this.prisma.user.update({
@@ -405,7 +404,7 @@ export class AuthService {
       return { message: 'If your email exists, you will receive a password reset link' };
     }
 
-    const resetToken = uuidv4();
+    const resetToken = crypto.randomUUID();
     const resetExpiry = new Date(Date.now() + this.TOKEN_EXPIRY_24H);
 
     await this.prisma.user.update({
@@ -572,7 +571,7 @@ export class AuthService {
     rememberMe?: boolean,
   ): Promise<TokenPair> {
     // Generate unique JWT ID for refresh token (for tracking)
-    const jti = uuidv4();
+    const jti = crypto.randomUUID();
     
     const accessPayload: JwtPayload = { sub: userId, email, type: 'access' };
     const refreshPayload: JwtPayload = { sub: userId, email, type: 'refresh', jti };
@@ -582,12 +581,13 @@ export class AuthService {
     const refreshExpiresIn = rememberMe ? '30d' : (this.configService.get<string>('jwt.refreshExpiresIn') || '7d');
 
     const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: accessExpiresIn,
+      // Nest v11 typings require number | StringValue; we provide a string literal like '15m'
+      expiresIn: accessExpiresIn as any,
     });
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
-      secret: this.configService.get<string>('jwt.refreshSecret'),
-      expiresIn: refreshExpiresIn,
+      secret: this.configService.getOrThrow<string>('jwt.refreshSecret'),
+      expiresIn: refreshExpiresIn as any,
     });
 
     // Calculate expiry date
@@ -636,7 +636,7 @@ export class AuthService {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-    const uniqueSuffix = uuidv4().slice(0, 8);
+    const uniqueSuffix = crypto.randomUUID().slice(0, 8);
     return `${baseSlug}-${uniqueSuffix}`;
   }
 

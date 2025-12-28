@@ -18,6 +18,8 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
+import type { AuthResponse } from './auth.service';
+import type { TokenPair } from './auth.service';
 import {
   RegisterDto,
   LoginDto,
@@ -66,7 +68,7 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 409, description: 'Email already registered' })
-  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+  async register(@Body() dto: RegisterDto, @Req() req: Request): Promise<AuthResponse> {
     const ipAddress = this.getClientIp(req);
     return this.authService.register(dto, ipAddress);
   }
@@ -82,7 +84,7 @@ export class AuthController {
     description: 'Login successful',
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
+  async login(@Body() dto: LoginDto, @Req() req: Request): Promise<AuthResponse> {
     const ipAddress = this.getClientIp(req);
     const userAgent = req.headers['user-agent'];
     return this.authService.login(dto, ipAddress, userAgent);
@@ -98,7 +100,7 @@ export class AuthController {
     description: 'Tokens refreshed successfully',
   })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refreshToken(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+  async refreshToken(@Body() dto: RefreshTokenDto, @Req() req: Request): Promise<TokenPair> {
     const ipAddress = this.getClientIp(req);
     return this.authService.refreshToken(dto, ipAddress);
   }

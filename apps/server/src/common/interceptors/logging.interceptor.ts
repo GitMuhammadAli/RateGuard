@@ -8,7 +8,7 @@ import {
 import { Observable } from "rxjs";
 import { tap } from "rxjs/operators";
 import { Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
+import * as crypto from "crypto";
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -19,7 +19,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse<Response>();
 
     // Generate request ID if not present
-    const requestId = (request.headers["x-request-id"] as string) || uuidv4();
+    const requestId = (request.headers["x-request-id"] as string) || crypto.randomUUID();
     request.headers["x-request-id"] = requestId;
     response.setHeader("X-Request-Id", requestId);
 
