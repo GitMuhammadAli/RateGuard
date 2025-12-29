@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "unauthorized": "Authentification requise",
+    "forbidden": "Accès refusé",
+    "not_found": "Ressource non trouvée",
+    "validation": "Échec de la validation",
+    "internal": "Erreur interne du serveur"
+  },
+  "auth": {
+    "login_success": "Connexion réussie",
+    "logout_success": "Déconnexion réussie",
+    "register_success": "Inscription réussie",
+    "invalid_credentials": "Email ou mot de passe invalide",
+    "email_verified": "Email vérifié avec succès",
+    "password_reset_sent": "Lien de réinitialisation envoyé",
+    "password_changed": "Mot de passe changé avec succès"
+  },
+  "user": {
+    "created": "Utilisateur créé avec succès",
+    "updated": "Utilisateur mis à jour avec succès",
+    "deleted": "Utilisateur supprimé avec succès",
+    "not_found": "Utilisateur non trouvé"
+  }
+}
+

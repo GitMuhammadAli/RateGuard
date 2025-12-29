@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "unauthorized": "Authentication required",
+    "forbidden": "Access denied",
+    "not_found": "Resource not found",
+    "validation": "Validation failed",
+    "internal": "Internal server error"
+  },
+  "auth": {
+    "login_success": "Login successful",
+    "logout_success": "Logout successful",
+    "register_success": "Registration successful",
+    "invalid_credentials": "Invalid email or password",
+    "email_verified": "Email verified successfully",
+    "password_reset_sent": "Password reset link sent",
+    "password_changed": "Password changed successfully"
+  },
+  "user": {
+    "created": "User created successfully",
+    "updated": "User updated successfully",
+    "deleted": "User deleted successfully",
+    "not_found": "User not found"
+  }
+}
+

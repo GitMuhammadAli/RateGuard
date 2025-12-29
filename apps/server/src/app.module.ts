@@ -1,24 +1,18 @@
-import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
-import { APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
-import configuration from "./config/configuration";
-import { PrismaModule } from "./prisma/prisma.module";
-import { AuthModule } from "./modules/auth/auth.module";
-import { EmailModule } from "./modules/email/email.module";
-import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
-import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR, APP_GUARD, APP_FILTER } from '@nestjs/core';
+import configuration from './config/configuration';
 
-// TODO: Uncomment as modules are created
-// import { RedisModule } from "./redis/redis.module";
-// import { UsersModule } from "./modules/users/users.module";
-// import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
-// import { ApiKeysModule } from "./modules/api-keys/api-keys.module";
-// import { RateLimitsModule } from "./modules/rate-limits/rate-limits.module";
-// import { UpstreamsModule } from "./modules/upstreams/upstreams.module";
-// import { GatewayModule } from "./modules/gateway/gateway.module";
-// import { AnalyticsModule } from "./modules/analytics/analytics.module";
-// import { WebhooksModule } from "./modules/webhooks/webhooks.module";
-// import { AdminModule } from "./modules/admin/admin.module";
+// Core Modules
+import { DatabaseModule } from './database/database.module';
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module';
+
+// System Components
+import { EmailModule } from './system/module/email/email.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { LoggingInterceptor } from './system/interceptor/logging.interceptor';
+import { HttpExceptionFilter } from './system/filter/http-exception.filter';
 
 @Module({
   imports: [
@@ -26,31 +20,33 @@ import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: [".env.local", ".env"],
+      envFilePath: ['.env.local', '.env'],
     }),
 
     // Database
-    PrismaModule,
+    DatabaseModule,
 
-    // Email
+    // Email (Global)
     EmailModule,
 
-    // Authentication
+    // Feature Modules
     AuthModule,
+    UserModule,
 
-    // TODO: Uncomment as modules are created
-    // RedisModule,
-    // UsersModule,
+    // TODO: Add more modules as needed
     // WorkspacesModule,
     // ApiKeysModule,
     // RateLimitsModule,
     // UpstreamsModule,
     // GatewayModule,
     // AnalyticsModule,
-    // WebhooksModule,
-    // AdminModule,
   ],
   providers: [
+    // Global exception filter
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
     // Global JWT auth guard (use @Public() to skip)
     {
       provide: APP_GUARD,
