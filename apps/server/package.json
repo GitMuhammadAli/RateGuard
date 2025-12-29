@@ -29,7 +29,6 @@
     "@nestjs/platform-express": "^11.1.10",
     "@nestjs/swagger": "^11.2.3",
     "@prisma/client": "^7.2.0",
-    "@rateguard/db": "*",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.7",

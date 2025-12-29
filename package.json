@@ -3,24 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "description": "API Rate Limiting Gateway",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
-    "dev": "npm run dev:server & npm run dev:client",
-    "dev:server": "npm run start:dev -w @rateguard/server",
-    "dev:client": "npm run dev -w @rateguard/client",
-    "build": "npm run build --workspaces",
-    "build:server": "npm run build -w @rateguard/server",
-    "build:client": "npm run build -w @rateguard/client",
+    "dev": "pnpm --parallel run dev",
+    "dev:server": "pnpm --filter @rateguard/server run start:dev",
+    "dev:client": "pnpm --filter @rateguard/client run dev",
+    "build": "pnpm --recursive run build",
+    "build:server": "pnpm --filter @rateguard/server run build",
+    "build:client": "pnpm --filter @rateguard/client run build",
     "docker:up": "docker compose -f docker/compose.yml up -d",
     "docker:down": "docker compose -f docker/compose.yml down",
     "docker:reset": "docker compose -f docker/compose.yml down -v",
     "docker:logs": "docker compose -f docker/compose.yml logs -f",
-    "db:push": "npm run prisma:migrate -w @rateguard/server",
-    "db:generate": "npm run prisma:generate -w @rateguard/server",
-    "db:studio": "npm run prisma:studio -w @rateguard/server"
-  },
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ]
+    "db:push": "pnpm --filter @rateguard/server run prisma:migrate",
+    "db:generate": "pnpm --filter @rateguard/server run prisma:generate",
+    "db:studio": "pnpm --filter @rateguard/server run prisma:studio",
+    "clean": "pnpm --recursive exec -- rm -rf node_modules dist .next",
+    "install:all": "pnpm install"
+  }
 }
 
