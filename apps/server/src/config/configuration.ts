@@ -5,6 +5,7 @@ export default () => ({
     port: parseInt(process.env.PORT ?? '3000', 10),
     apiPrefix: process.env.API_PREFIX || 'api/v1',
     corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001'],
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3001',
   },
   database: {
     url: process.env.DATABASE_URL,
@@ -22,5 +23,12 @@ export default () => ({
   },
   encryption: {
     key: process.env.ENCRYPTION_KEY,
+  },
+  email: {
+    host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
+    port: parseInt(process.env.EMAIL_PORT ?? '587', 10),
+    user: process.env.EMAIL_USER,
+    password: process.env.EMAIL_PASSWORD,
+    from: process.env.EMAIL_FROM || 'RateGuard <noreply@rateguard.io>',
   },
 });

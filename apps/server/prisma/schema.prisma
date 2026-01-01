@@ -1,0 +1,275 @@
+// RateGuard Database Schema
+// Prisma schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique @db.VarChar(255)
+  passwordHash      String?   @map("password_hash") @db.VarChar(255)
+  fullName          String    @map("full_name") @db.VarChar(255)
+  avatarUrl         String?   @map("avatar_url") @db.VarChar(500)
+  
+  // Email verification
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  emailVerifyToken  String?   @unique @map("email_verify_token") @db.VarChar(255)
+  emailVerifyExpiry DateTime? @map("email_verify_expiry")
+  
+  // Password reset
+  passwordResetToken  String?   @unique @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpiry DateTime? @map("password_reset_expiry")
+  
+  // OAuth
+  oauthProvider     String?   @map("oauth_provider") @db.VarChar(50)
+  oauthProviderId   String?   @map("oauth_provider_id") @db.VarChar(255)
+  
+  // MFA
+  mfaEnabled        Boolean   @default(false) @map("mfa_enabled")
+  mfaSecret         String?   @map("mfa_secret") @db.VarChar(255)
+  
+  // Account status
+  isActive          Boolean   @default(true) @map("is_active")
+  lastLoginAt       DateTime? @map("last_login_at")
+  lastLoginIp       String?   @map("last_login_ip") @db.VarChar(45)
+  
+  // Timestamps
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  sessions          Session[]
+  workspaces        WorkspaceMember[]
+  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([oauthProvider, oauthProviderId])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  
+  // Token info
+  refreshToken String   @unique @map("refresh_token") @db.VarChar(500)
+  
+  // Device tracking
+  userAgent    String?  @map("user_agent") @db.VarChar(500)
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  deviceInfo   String?  @map("device_info") @db.VarChar(255)
+  
+  // Session management
+  expiresAt    DateTime @map("expires_at")
+  lastActiveAt DateTime @default(now()) @map("last_active_at")
+  revokedAt    DateTime? @map("revoked_at")
+  
+  // Timestamps
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ============================================================================
+// WORKSPACES
+// ============================================================================
+
+model Workspace {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  
+  // Owner
+  ownerId     String   @map("owner_id") @db.Uuid
+  
+  // Plan & limits
+  plan        String   @default("free") @db.VarChar(50)
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members     WorkspaceMember[]
+  apiKeys     ApiKey[]
+  upstreams   Upstream[]
+
+  @@index([ownerId])
+  @@index([slug])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String   @default("member") @db.VarChar(50) // owner, admin, member, viewer
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+// ============================================================================
+// API KEYS
+// ============================================================================
+
+model ApiKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  
+  // Key info
+  name        String    @db.VarChar(255)
+  keyPrefix   String    @map("key_prefix") @db.VarChar(20) // First 8 chars for identification
+  keyHash     String    @map("key_hash") @db.VarChar(255)  // Hashed full key
+  
+  // Permissions
+  scopes      String[]  @default([])
+  
+  // Status
+  isActive    Boolean   @default(true) @map("is_active")
+  expiresAt   DateTime? @map("expires_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([keyPrefix])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+// ============================================================================
+// UPSTREAMS
+// ============================================================================
+
+model Upstream {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  
+  // Upstream info
+  name        String   @db.VarChar(255)
+  baseUrl     String   @map("base_url") @db.VarChar(500)
+  
+  // Configuration
+  timeout     Int      @default(30000) // milliseconds
+  retries     Int      @default(3)
+  
+  // Health check
+  healthPath  String?  @map("health_path") @db.VarChar(255)
+  isHealthy   Boolean  @default(true) @map("is_healthy")
+  lastCheckAt DateTime? @map("last_check_at")
+  
+  // Status
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rateLimits  RateLimit[]
+
+  @@index([workspaceId])
+  @@map("upstreams")
+}
+
+// ============================================================================
+// RATE LIMITS
+// ============================================================================
+
+model RateLimit {
+  id          String   @id @default(uuid()) @db.Uuid
+  upstreamId  String   @map("upstream_id") @db.Uuid
+  
+  // Rule info
+  name        String   @db.VarChar(255)
+  path        String   @default("*") @db.VarChar(500) // Path pattern
+  method      String   @default("*") @db.VarChar(10)  // HTTP method or *
+  
+  // Limits
+  requests    Int      @default(100)
+  windowMs    Int      @default(60000) @map("window_ms") // 1 minute default
+  
+  // Strategy
+  strategy    String   @default("sliding_window") @db.VarChar(50)
+  
+  // Status
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  upstream    Upstream @relation(fields: [upstreamId], references: [id], onDelete: Cascade)
+
+  @@index([upstreamId])
+  @@index([path, method])
+  @@map("rate_limits")
+}
+
+// ============================================================================
+// AUDIT LOGS
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  
+  // Action info
+  action      String   @db.VarChar(100)
+  resource    String   @db.VarChar(100)
+  resourceId  String?  @map("resource_id") @db.VarChar(255)
+  
+  // Details
+  details     Json?
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(500)
+  
+  // Timestamp
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+
