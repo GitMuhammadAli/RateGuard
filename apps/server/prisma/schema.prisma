@@ -1,5 +1,6 @@
-// RateGuard Database Schema
-// Prisma schema for PostgreSQL
+// ============================================================================
+// RateGuard Prisma Schema v2.0
+// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -11,78 +12,151 @@ datasource db {
 }
 
 // ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum AuthMethod {
+  HEADER
+  QUERY
+  BASIC
+  OAUTH2
+}
+
+enum BudgetPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum AlertConditionType {
+  BUDGET_THRESHOLD
+  RATE_LIMIT_PROXIMITY
+  ERROR_RATE
+  SPEND_RATE
+  LATENCY_THRESHOLD
+  PROVIDER_DOWN
+}
+
+enum ChannelType {
+  EMAIL
+  SLACK
+  WEBHOOK
+  DISCORD
+  PAGERDUTY
+  TEAMS
+}
+
+enum WebhookEvent {
+  REQUEST_COMPLETED
+  REQUEST_FAILED
+  RATE_LIMIT_HIT
+  BUDGET_THRESHOLD
+  BUDGET_EXCEEDED
+  ALERT_TRIGGERED
+  PROVIDER_DOWN
+  PROVIDER_UP
+}
+
+enum RateLimitStrategy {
+  SLIDING_WINDOW
+  FIXED_WINDOW
+  TOKEN_BUCKET
+  LEAKY_BUCKET
+}
+
+// ============================================================================
 // USER MANAGEMENT
 // ============================================================================
 
 model User {
-  id                String    @id @default(uuid()) @db.Uuid
-  email             String    @unique @db.VarChar(255)
-  passwordHash      String?   @map("password_hash") @db.VarChar(255)
-  fullName          String    @map("full_name") @db.VarChar(255)
-  avatarUrl         String?   @map("avatar_url") @db.VarChar(500)
-  
-  // Email verification
-  emailVerified     Boolean   @default(false) @map("email_verified")
-  emailVerifyToken  String?   @unique @map("email_verify_token") @db.VarChar(255)
-  emailVerifyExpiry DateTime? @map("email_verify_expiry")
-  
-  // Password reset
-  passwordResetToken  String?   @unique @map("password_reset_token") @db.VarChar(255)
-  passwordResetExpiry DateTime? @map("password_reset_expiry")
-  
-  // OAuth
-  oauthProvider     String?   @map("oauth_provider") @db.VarChar(50)
-  oauthProviderId   String?   @map("oauth_provider_id") @db.VarChar(255)
-  
-  // MFA
-  mfaEnabled        Boolean   @default(false) @map("mfa_enabled")
-  mfaSecret         String?   @map("mfa_secret") @db.VarChar(255)
-  
-  // Account status
-  isActive          Boolean   @default(true) @map("is_active")
-  lastLoginAt       DateTime? @map("last_login_at")
-  lastLoginIp       String?   @map("last_login_ip") @db.VarChar(45)
-  
-  // Timestamps
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  
-  // Relations
-  sessions          Session[]
-  workspaces        WorkspaceMember[]
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  auditLogs         AuditLog[]
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?   @map("password_hash")
+  fullName      String    @map("full_name")
+  avatarUrl     String?   @map("avatar_url")
 
-  @@index([email])
-  @@index([oauthProvider, oauthProviderId])
+  // Email verification
+  emailVerified      Boolean   @default(false) @map("email_verified")
+  emailVerifyToken   String?   @unique @map("email_verify_token")
+  emailVerifyExpiry  DateTime? @map("email_verify_expiry")
+
+  // Password reset
+  passwordResetToken  String?   @unique @map("password_reset_token")
+  passwordResetExpiry DateTime? @map("password_reset_expiry")
+
+  // OAuth
+  oauthProvider   String? @map("oauth_provider")
+  oauthProviderId String? @map("oauth_provider_id")
+
+  // MFA
+  mfaEnabled     Boolean  @default(false) @map("mfa_enabled")
+  mfaSecret      String?  @map("mfa_secret")
+  mfaBackupCodes String[] @map("mfa_backup_codes")
+
+  // Security
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  isActive            Boolean   @default(true) @map("is_active")
+  lastLoginAt         DateTime? @map("last_login_at")
+  lastLoginIp         String?   @map("last_login_ip")
+
+  // Preferences
+  timezone    String @default("UTC")
+  preferences Json   @default("{}")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sessions             Session[]
+  ownedWorkspaces      Workspace[]
+  workspaceMembers     WorkspaceMember[]
+  sentInvitations      WorkspaceInvitation[]
+  createdApiKeys       ApiKey[]              @relation("CreatedApiKeys")
+  acknowledgedAlerts   AlertEvent[]          @relation("AcknowledgedAlerts")
+  resolvedAlerts       AlertEvent[]          @relation("ResolvedAlerts")
+  auditLogs            AuditLog[]
+
+  @@unique([oauthProvider, oauthProviderId])
   @@map("users")
 }
 
 model Session {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  
-  // Token info
-  refreshToken String   @unique @map("refresh_token") @db.VarChar(500)
-  
+  id        String @id @default(uuid())
+  userId    String @map("user_id")
+
+  // Token
+  refreshToken String @unique @map("refresh_token")
+  tokenFamily  String @map("token_family")
+
   // Device tracking
-  userAgent    String?  @map("user_agent") @db.VarChar(500)
-  ipAddress    String?  @map("ip_address") @db.VarChar(45)
-  deviceInfo   String?  @map("device_info") @db.VarChar(255)
-  
-  // Session management
-  expiresAt    DateTime @map("expires_at")
-  lastActiveAt DateTime @default(now()) @map("last_active_at")
-  revokedAt    DateTime? @map("revoked_at")
-  
-  // Timestamps
-  createdAt    DateTime @default(now()) @map("created_at")
-  
+  userAgent  String? @map("user_agent")
+  ipAddress  String? @map("ip_address")
+  deviceInfo String? @map("device_info")
+  location   String?
+
+  // Lifecycle
+  expiresAt     DateTime  @map("expires_at")
+  lastActiveAt  DateTime  @default(now()) @map("last_active_at")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
   // Relations
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([refreshToken])
+  @@index([tokenFamily])
   @@index([expiresAt])
   @@map("sessions")
 }
@@ -92,154 +166,756 @@ model Session {
 // ============================================================================
 
 model Workspace {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(255)
-  slug        String   @unique @db.VarChar(100)
-  description String?  @db.VarChar(500)
-  
-  // Owner
-  ownerId     String   @map("owner_id") @db.Uuid
-  
-  // Plan & limits
-  plan        String   @default("free") @db.VarChar(50)
-  
+  id          String  @id @default(uuid())
+  ownerId     String  @map("owner_id")
+  name        String
+  slug        String  @unique
+  description String?
+  logoUrl     String? @map("logo_url")
+
+  // Plan
+  plan       String @default("free")
+  planLimits Json   @default("{}") @map("plan_limits")
+
+  // Settings
+  settings Json @default("{}")
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+
   // Timestamps
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
-  members     WorkspaceMember[]
-  apiKeys     ApiKey[]
-  upstreams   Upstream[]
+  owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  members              WorkspaceMember[]
+  invitations          WorkspaceInvitation[]
+  providers            Provider[]
+  projects             Project[]
+  apiKeys              ApiKey[]
+  budgets              Budget[]
+  notificationChannels NotificationChannel[]
+  alertRules           AlertRule[]
+  alertEvents          AlertEvent[]
+  webhooks             Webhook[]
+  auditLogs            AuditLog[]
+  requestLogs          RequestLog[]
+  usageHourly          UsageHourly[]
+  usageDaily           UsageDaily[]
 
   @@index([ownerId])
-  @@index([slug])
+  @@index([deletedAt])
   @@map("workspaces")
 }
 
 model WorkspaceMember {
-  id          String   @id @default(uuid()) @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  role        String   @default("member") @db.VarChar(50) // owner, admin, member, viewer
-  
-  // Timestamps
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
+  id          String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  userId      String @map("user_id")
+  role        Role   @default(DEVELOPER)
+
+  notificationsEnabled Boolean @default(true) @map("notifications_enabled")
+
+  joinedAt  DateTime @default(now()) @map("joined_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
   @@index([userId])
   @@map("workspace_members")
 }
 
-// ============================================================================
-// API KEYS
-// ============================================================================
+model WorkspaceInvitation {
+  id          String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  email       String
+  role        Role   @default(DEVELOPER)
 
-model ApiKey {
-  id          String    @id @default(uuid()) @db.Uuid
-  workspaceId String    @map("workspace_id") @db.Uuid
-  
-  // Key info
-  name        String    @db.VarChar(255)
-  keyPrefix   String    @map("key_prefix") @db.VarChar(20) // First 8 chars for identification
-  keyHash     String    @map("key_hash") @db.VarChar(255)  // Hashed full key
-  
-  // Permissions
-  scopes      String[]  @default([])
-  
-  // Status
-  isActive    Boolean   @default(true) @map("is_active")
-  expiresAt   DateTime? @map("expires_at")
-  lastUsedAt  DateTime? @map("last_used_at")
-  
-  // Timestamps
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+
+  acceptedAt DateTime? @map("accepted_at")
+  declinedAt DateTime? @map("declined_at")
+
+  invitedBy String @map("invited_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
   // Relations
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("workspace_invitations")
+}
+
+// ============================================================================
+// PROVIDERS & ENDPOINTS
+// ============================================================================
+
+model Provider {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  name        String
+  slug        String
+  description String?
+  baseUrl     String  @map("base_url")
+  logoUrl     String? @map("logo_url")
+  color       String?
+
+  // Authentication
+  authMethod      AuthMethod @default(HEADER) @map("auth_method")
+  authConfig      Json       @default("{}") @map("auth_config")
+  apiKeyEncrypted String?    @map("api_key_encrypted")
+  apiKeyIv        String?    @map("api_key_iv")
+
+  // Request config
+  timeoutMs     Int @default(30000) @map("timeout_ms")
+  maxRetries    Int @default(3) @map("max_retries")
+  retryDelayMs  Int @default(1000) @map("retry_delay_ms")
+
+  // Headers
+  customHeaders  Json     @default("{}") @map("custom_headers")
+  forwardHeaders String[] @default([]) @map("forward_headers")
+  stripHeaders   String[] @default([]) @map("strip_headers")
+
+  // Pricing
+  pricingModel Json @default("{}") @map("pricing_model")
+
+  // Caching
+  cacheEnabled    Boolean  @default(false) @map("cache_enabled")
+  cacheTtlSeconds Int      @default(300) @map("cache_ttl_seconds")
+  cacheKeyHeaders String[] @default([]) @map("cache_key_headers")
+
+  // Health
+  healthCheckEnabled         Boolean   @default(true) @map("health_check_enabled")
+  healthCheckPath            String?   @map("health_check_path")
+  healthCheckIntervalSeconds Int       @default(60) @map("health_check_interval_seconds")
+  isHealthy                  Boolean   @default(true) @map("is_healthy")
+  lastHealthCheckAt          DateTime? @map("last_health_check_at")
+  consecutiveFailures        Int       @default(0) @map("consecutive_failures")
+
+  // Status
+  isActive  Boolean   @default(true) @map("is_active")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  endpoints   ProviderEndpoint[]
+  rateLimits  RateLimit[]
+  requestLogs RequestLog[]
+  budgets     Budget[]
+  usageHourly UsageHourly[]
+  usageDaily  UsageDaily[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("providers")
+}
+
+model ProviderEndpoint {
+  id          String  @id @default(uuid())
+  providerId  String  @map("provider_id")
+  name        String
+  pathPattern String  @map("path_pattern")
+  method      String  @default("*")
+  description String?
+
+  // Overrides
+  pricingModel       Json? @map("pricing_model")
+  rateLimitRequests  Int?  @map("rate_limit_requests")
+  rateLimitWindowMs  Int?  @map("rate_limit_window_ms")
+  timeoutMs          Int?  @map("timeout_ms")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, pathPattern, method])
+  @@index([providerId])
+  @@map("provider_endpoints")
+}
+
+model RateLimit {
+  id          String  @id @default(uuid())
+  providerId  String  @map("provider_id")
+  name        String
+  description String?
+
+  // Matching
+  pathPattern String @default("*") @map("path_pattern")
+  method      String @default("*")
+
+  // Limits
+  requests Int @default(100)
+  windowMs Int @default(60000) @map("window_ms")
+
+  // Strategy
+  strategy   RateLimitStrategy @default(SLIDING_WINDOW)
+  bucketSize Int?              @map("bucket_size")
+  refillRate Int?              @map("refill_rate")
+
+  // Scope & priority
+  scope    String @default("api_key")
+  priority Int    @default(0)
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([priority])
+  @@map("rate_limits")
+}
+
+// ============================================================================
+// PROJECTS & API KEYS
+// ============================================================================
+
+model Project {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  name        String
+  description String?
+  color       String?
+
+  settings Json @default("{}")
+
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  apiKeys     ApiKey[]
+  requestLogs RequestLog[]
+  budgets     Budget[]
+  usageHourly UsageHourly[]
+  usageDaily  UsageDaily[]
+
+  @@index([workspaceId])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ApiKey {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  projectId   String? @map("project_id")
+
+  name        String
+  description String?
+
+  // Key
+  keyPrefix String @map("key_prefix")
+  keyHash   String @unique @map("key_hash")
+
+  // Permissions
+  scopes             String[] @default([])
+  allowedProviderIds String[] @default([]) @map("allowed_provider_ids")
+
+  // Rate limiting
+  rateLimitRequests Int? @map("rate_limit_requests")
+  rateLimitWindowMs Int? @map("rate_limit_window_ms")
+
+  // Restrictions
+  allowedIps     String[] @default([]) @map("allowed_ips")
+  allowedOrigins String[] @default([]) @map("allowed_origins")
+
+  // Usage
+  lastUsedAt   DateTime? @map("last_used_at")
+  lastUsedIp   String?   @map("last_used_ip")
+  requestCount BigInt    @default(0) @map("request_count")
+
+  // Lifecycle
+  expiresAt     DateTime? @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+
+  isActive  Boolean   @default(true) @map("is_active")
+  createdBy String?   @map("created_by")
+  deletedAt DateTime? @map("deleted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  creator     User?         @relation("CreatedApiKeys", fields: [createdBy], references: [id], onDelete: SetNull)
+  requestLogs RequestLog[]
+  usageHourly UsageHourly[]
+  usageDaily  UsageDaily[]
+  auditLogs   AuditLog[]
+
+  @@index([workspaceId])
+  @@index([projectId])
   @@index([keyPrefix])
-  @@index([keyHash])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("api_keys")
 }
 
 // ============================================================================
-// UPSTREAMS
+// REQUEST LOGGING
 // ============================================================================
 
-model Upstream {
-  id          String   @id @default(uuid()) @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
-  
-  // Upstream info
-  name        String   @db.VarChar(255)
-  baseUrl     String   @map("base_url") @db.VarChar(500)
-  
-  // Configuration
-  timeout     Int      @default(30000) // milliseconds
-  retries     Int      @default(3)
-  
-  // Health check
-  healthPath  String?  @map("health_path") @db.VarChar(255)
-  isHealthy   Boolean  @default(true) @map("is_healthy")
-  lastCheckAt DateTime? @map("last_check_at")
-  
-  // Status
-  isActive    Boolean  @default(true) @map("is_active")
-  
-  // Timestamps
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  // Relations
-  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  rateLimits  RateLimit[]
+model RequestLog {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  apiKeyId    String  @map("api_key_id")
+  providerId  String  @map("provider_id")
+  projectId   String? @map("project_id")
 
-  @@index([workspaceId])
-  @@map("upstreams")
+  // Tracing
+  requestId    String  @unique @map("request_id")
+  traceId      String? @map("trace_id")
+  parentSpanId String? @map("parent_span_id")
+
+  // Request
+  method      String
+  path        String
+  queryParams Json?  @map("query_params")
+
+  // Response
+  statusCode   Int     @map("status_code")
+  errorCode    String? @map("error_code")
+  errorMessage String? @map("error_message")
+
+  // Performance
+  latencyMs         Int  @map("latency_ms")
+  upstreamLatencyMs Int? @map("upstream_latency_ms")
+
+  // Size
+  requestSizeBytes  Int @map("request_size_bytes")
+  responseSizeBytes Int @map("response_size_bytes")
+
+  // Tokens (LLM)
+  tokensInput  Int?    @map("tokens_input")
+  tokensOutput Int?    @map("tokens_output")
+  tokensTotal  Int?    @map("tokens_total")
+  model        String?
+
+  // Cost
+  costCents Decimal @default(0) @map("cost_cents") @db.Decimal(10, 4)
+
+  // Rate limiting
+  rateLimited        Boolean   @default(false) @map("rate_limited")
+  rateLimitRemaining Int?      @map("rate_limit_remaining")
+  rateLimitResetAt   DateTime? @map("rate_limit_reset_at")
+
+  // Retry
+  retryCount        Int     @default(0) @map("retry_count")
+  isRetry           Boolean @default(false) @map("is_retry")
+  originalRequestId String? @map("original_request_id")
+
+  // Cache
+  cacheHit Boolean @default(false) @map("cache_hit")
+  cacheKey String? @map("cache_key")
+
+  // Client
+  clientIp  String? @map("client_ip")
+  userAgent String? @map("user_agent")
+  origin    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  apiKey    ApiKey    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  provider  Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([traceId])
+  @@index([statusCode, createdAt])
+  @@index([rateLimited, createdAt])
+  @@map("request_logs")
 }
 
 // ============================================================================
-// RATE LIMITS
+// USAGE ANALYTICS
 // ============================================================================
 
-model RateLimit {
-  id          String   @id @default(uuid()) @db.Uuid
-  upstreamId  String   @map("upstream_id") @db.Uuid
-  
-  // Rule info
-  name        String   @db.VarChar(255)
-  path        String   @default("*") @db.VarChar(500) // Path pattern
-  method      String   @default("*") @db.VarChar(10)  // HTTP method or *
-  
-  // Limits
-  requests    Int      @default(100)
-  windowMs    Int      @default(60000) @map("window_ms") // 1 minute default
-  
-  // Strategy
-  strategy    String   @default("sliding_window") @db.VarChar(50)
-  
-  // Status
-  isActive    Boolean  @default(true) @map("is_active")
-  
-  // Timestamps
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  // Relations
-  upstream    Upstream @relation(fields: [upstreamId], references: [id], onDelete: Cascade)
+model UsageHourly {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  providerId  String? @map("provider_id")
+  apiKeyId    String? @map("api_key_id")
+  projectId   String? @map("project_id")
 
-  @@index([upstreamId])
-  @@index([path, method])
-  @@map("rate_limits")
+  hour DateTime
+
+  // Counts
+  requestCount     Int @default(0) @map("request_count")
+  successCount     Int @default(0) @map("success_count")
+  errorCount       Int @default(0) @map("error_count")
+  rateLimitedCount Int @default(0) @map("rate_limited_count")
+  cacheHitCount    Int @default(0) @map("cache_hit_count")
+
+  // Latency
+  totalLatencyMs BigInt @default(0) @map("total_latency_ms")
+  minLatencyMs   Int?   @map("min_latency_ms")
+  maxLatencyMs   Int?   @map("max_latency_ms")
+  latencyP50Ms   Int?   @map("latency_p50_ms")
+  latencyP95Ms   Int?   @map("latency_p95_ms")
+  latencyP99Ms   Int?   @map("latency_p99_ms")
+
+  // Size
+  totalRequestBytes  BigInt @default(0) @map("total_request_bytes")
+  totalResponseBytes BigInt @default(0) @map("total_response_bytes")
+
+  // Tokens
+  totalTokensInput  BigInt @default(0) @map("total_tokens_input")
+  totalTokensOutput BigInt @default(0) @map("total_tokens_output")
+
+  // Cost
+  totalCostCents Decimal @default(0) @map("total_cost_cents") @db.Decimal(12, 4)
+
+  // Errors
+  error4xxCount Int @default(0) @map("error_4xx_count")
+  error5xxCount Int @default(0) @map("error_5xx_count")
+  timeoutCount  Int @default(0) @map("timeout_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider  Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  apiKey    ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, providerId, apiKeyId, projectId, hour])
+  @@index([workspaceId, hour])
+  @@index([providerId, hour])
+  @@index([apiKeyId, hour])
+  @@index([hour])
+  @@map("usage_hourly")
+}
+
+model UsageDaily {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  providerId  String? @map("provider_id")
+  apiKeyId    String? @map("api_key_id")
+  projectId   String? @map("project_id")
+
+  day DateTime @db.Date
+
+  // Counts
+  requestCount     Int @default(0) @map("request_count")
+  successCount     Int @default(0) @map("success_count")
+  errorCount       Int @default(0) @map("error_count")
+  rateLimitedCount Int @default(0) @map("rate_limited_count")
+  cacheHitCount    Int @default(0) @map("cache_hit_count")
+  uniqueApiKeys    Int @default(0) @map("unique_api_keys")
+
+  // Latency
+  avgLatencyMs Int? @map("avg_latency_ms")
+  minLatencyMs Int? @map("min_latency_ms")
+  maxLatencyMs Int? @map("max_latency_ms")
+  latencyP50Ms Int? @map("latency_p50_ms")
+  latencyP95Ms Int? @map("latency_p95_ms")
+  latencyP99Ms Int? @map("latency_p99_ms")
+
+  // Size
+  totalRequestBytes  BigInt @default(0) @map("total_request_bytes")
+  totalResponseBytes BigInt @default(0) @map("total_response_bytes")
+
+  // Tokens
+  totalTokensInput  BigInt @default(0) @map("total_tokens_input")
+  totalTokensOutput BigInt @default(0) @map("total_tokens_output")
+
+  // Cost
+  totalCostCents Decimal @default(0) @map("total_cost_cents") @db.Decimal(12, 4)
+
+  // Errors
+  error4xxCount Int @default(0) @map("error_4xx_count")
+  error5xxCount Int @default(0) @map("error_5xx_count")
+  timeoutCount  Int @default(0) @map("timeout_count")
+
+  // Peak
+  peakHour         Int? @map("peak_hour")
+  peakHourRequests Int? @map("peak_hour_requests")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider  Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  apiKey    ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, providerId, apiKeyId, projectId, day])
+  @@index([workspaceId, day])
+  @@index([providerId, day])
+  @@index([day])
+  @@map("usage_daily")
+}
+
+// ============================================================================
+// BUDGETS
+// ============================================================================
+
+model Budget {
+  id          String  @id @default(uuid())
+  workspaceId String  @map("workspace_id")
+  providerId  String? @map("provider_id")
+  projectId   String? @map("project_id")
+
+  name        String
+  description String?
+  amountCents Int          @map("amount_cents")
+  period      BudgetPeriod @default(MONTHLY)
+
+  // Tracking
+  currentSpendCents Int      @default(0) @map("current_spend_cents")
+  periodStartDate   DateTime @map("period_start_date") @db.Date
+  periodEndDate     DateTime @map("period_end_date") @db.Date
+
+  // Settings
+  isHardLimit        Boolean @default(false) @map("is_hard_limit")
+  alertThresholds    Int[]   @default([50, 75, 90, 100]) @map("alert_thresholds")
+  lastAlertThreshold Int?    @map("last_alert_threshold")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider  Provider?       @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  project   Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  history   BudgetHistory[]
+
+  @@index([workspaceId])
+  @@index([providerId])
+  @@index([projectId])
+  @@index([isActive])
+  @@map("budgets")
+}
+
+model BudgetHistory {
+  id       String @id @default(uuid())
+  budgetId String @map("budget_id")
+
+  periodStartDate   DateTime @map("period_start_date") @db.Date
+  periodEndDate     DateTime @map("period_end_date") @db.Date
+  budgetAmountCents Int      @map("budget_amount_cents")
+  actualSpendCents  Int      @map("actual_spend_cents")
+
+  requestCount Int @default(0) @map("request_count")
+  overageCents Int @default(0) @map("overage_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
+  @@index([budgetId, periodStartDate])
+  @@map("budget_history")
+}
+
+// ============================================================================
+// ALERTS & NOTIFICATIONS
+// ============================================================================
+
+model NotificationChannel {
+  id          String      @id @default(uuid())
+  workspaceId String      @map("workspace_id")
+  name        String
+  type        ChannelType
+  config      Json
+
+  isVerified        Boolean   @default(false) @map("is_verified")
+  verifiedAt        DateTime? @map("verified_at")
+  verificationToken String?   @map("verification_token")
+
+  isActive          Boolean   @default(true) @map("is_active")
+  lastUsedAt        DateTime? @map("last_used_at")
+  failureCount      Int       @default(0) @map("failure_count")
+  lastFailureAt     DateTime? @map("last_failure_at")
+  lastFailureReason String?   @map("last_failure_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([type])
+  @@index([isActive])
+  @@map("notification_channels")
+}
+
+model AlertRule {
+  id          String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+
+  name        String
+  description String?
+
+  conditionType   AlertConditionType @map("condition_type")
+  conditionConfig Json               @map("condition_config")
+
+  channelIds String[] @map("channel_ids")
+
+  cooldownMinutes Int       @default(60) @map("cooldown_minutes")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+
+  severity String @default("warning")
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  events    AlertEvent[]
+
+  @@index([workspaceId])
+  @@index([conditionType])
+  @@index([isActive])
+  @@map("alert_rules")
+}
+
+model AlertEvent {
+  id          String @id @default(uuid())
+  ruleId      String @map("rule_id")
+  workspaceId String @map("workspace_id")
+
+  triggerValue   String @map("trigger_value")
+  thresholdValue String @map("threshold_value")
+  message        String
+  severity       String
+
+  notificationsSent   Int @default(0) @map("notifications_sent")
+  notificationsFailed Int @default(0) @map("notifications_failed")
+
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedBy     String?   @map("resolved_by")
+  resolutionNote String?   @map("resolution_note")
+
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedBy String?   @map("acknowledged_by")
+
+  triggeredAt DateTime @default(now()) @map("triggered_at")
+
+  // Relations
+  rule         AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  acknowledger User?     @relation("AcknowledgedAlerts", fields: [acknowledgedBy], references: [id], onDelete: SetNull)
+  resolver     User?     @relation("ResolvedAlerts", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([ruleId])
+  @@index([workspaceId])
+  @@index([triggeredAt])
+  @@map("alert_events")
+}
+
+// ============================================================================
+// WEBHOOKS
+// ============================================================================
+
+model Webhook {
+  id          String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+
+  name        String
+  description String?
+  url         String
+  secret      String
+
+  events WebhookEvent[]
+
+  filterProviderIds String[] @default([]) @map("filter_provider_ids")
+  filterProjectIds  String[] @default([]) @map("filter_project_ids")
+
+  timeoutMs  Int @default(30000) @map("timeout_ms")
+  maxRetries Int @default(3) @map("max_retries")
+
+  isActive        Boolean   @default(true) @map("is_active")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastFailureAt       DateTime? @map("last_failure_at")
+  lastFailureReason   String?   @map("last_failure_reason")
+  disabledAt          DateTime? @map("disabled_at")
+  disabledReason      String?   @map("disabled_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([workspaceId])
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id        String       @id @default(uuid())
+  webhookId String       @map("webhook_id")
+  eventType WebhookEvent @map("event_type")
+  payload   Json
+
+  attemptNumber Int @default(1) @map("attempt_number")
+
+  requestHeaders Json? @map("request_headers")
+  requestBody    Json? @map("request_body")
+
+  responseStatus  Int?    @map("response_status")
+  responseHeaders Json?   @map("response_headers")
+  responseBody    String? @map("response_body")
+
+  latencyMs Int? @map("latency_ms")
+
+  success      Boolean @default(false)
+  errorMessage String? @map("error_message")
+
+  nextRetryAt DateTime? @map("next_retry_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([webhookId, createdAt])
+  @@index([success, nextRetryAt])
+  @@map("webhook_deliveries")
 }
 
 // ============================================================================
@@ -247,29 +923,35 @@ model RateLimit {
 // ============================================================================
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String?  @map("user_id") @db.Uuid
-  
-  // Action info
-  action      String   @db.VarChar(100)
-  resource    String   @db.VarChar(100)
-  resourceId  String?  @map("resource_id") @db.VarChar(255)
-  
-  // Details
-  details     Json?
-  ipAddress   String?  @map("ip_address") @db.VarChar(45)
-  userAgent   String?  @map("user_agent") @db.VarChar(500)
-  
-  // Timestamp
-  createdAt   DateTime @default(now()) @map("created_at")
-  
-  // Relations
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id          String  @id @default(uuid())
+  workspaceId String? @map("workspace_id")
+  userId      String? @map("user_id")
+  apiKeyId    String? @map("api_key_id")
 
+  action       String
+  resourceType String  @map("resource_type")
+  resourceId   String? @map("resource_id")
+
+  changes  Json?
+  metadata Json?
+
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+  requestId String? @map("request_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiKey    ApiKey?    @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
   @@index([userId])
   @@index([action])
+  @@index([resourceType])
+  @@index([resourceType, resourceId])
   @@index([createdAt])
+  @@index([workspaceId, createdAt])
   @@map("audit_logs")
 }
-
-

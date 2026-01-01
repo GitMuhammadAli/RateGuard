@@ -1,0 +1,66 @@
+# Docker Compose for RateGuard Development
+# Run with: pnpm docker:up (or: docker compose -f docker/compose.yml up -d)
+
+services:
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  # WHY: Stores all your app data (users, sessions, etc.)
+  # WHAT: A powerful, open-source relational database
+  postgres:
+    image: postgres:16-alpine          # Official PostgreSQL image (alpine = smaller)
+    container_name: rateguard-postgres
+    restart: unless-stopped            # Auto-restart if it crashes
+    
+    environment:
+      POSTGRES_USER: rateguard         # Database username
+      POSTGRES_PASSWORD: rateguard123  # Database password (change in production!)
+      POSTGRES_DB: rateguard           # Database name
+    
+    ports:
+      - "5432:5432"                     # Map container port to your PC
+      # Left side (5432) = your PC's port
+      # Right side (5432) = container's internal port
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persist data even after container stops
+    
+    healthcheck:                        # Check if database is ready
+      test: ["CMD-SHELL", "pg_isready -U rateguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  # WHY: Fast temporary storage for rate limiting, sessions, caching
+  # WHAT: In-memory key-value store (super fast!)
+  redis:
+    image: redis:7-alpine              # Official Redis image
+    container_name: rateguard-redis
+    restart: unless-stopped
+    
+    ports:
+      - "6379:6379"                     # Default Redis port
+    
+    volumes:
+      - redis_data:/data               # Optional: persist Redis data
+    
+    command: redis-server --appendonly yes  # Enable persistence
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================
+# Named Volumes
+# ============================================
+# WHY: Keep data safe even when containers are deleted
+# WHERE: Docker manages the storage location
+volumes:
+  postgres_data:    # Stores PostgreSQL database files
+  redis_data:       # Stores Redis persistence files
+
