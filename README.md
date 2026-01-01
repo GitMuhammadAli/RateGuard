@@ -40,7 +40,7 @@ rateguard/
 
 ## Tech Stack
 
-- **Backend:** Node.js, Express, TypeScript
+- **Backend:** Node.js, Nest.js, TypeScript
 - **Database:** PostgreSQL, Prisma ORM
 - **Cache:** Redis
 - **Frontend:** Next.js, React, Tailwind CSS
