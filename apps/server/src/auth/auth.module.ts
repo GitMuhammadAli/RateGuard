@@ -18,7 +18,7 @@ import { EmailModule } from '../system/module/email/email.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('jwt.secret'),
         signOptions: {
-          expiresIn: configService.get<string>('jwt.expiresIn') || '15m',
+          expiresIn: (configService.get<string>('jwt.expiresIn') || '15m') as any,
         },
       }),
     }),

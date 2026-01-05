@@ -139,6 +139,81 @@ export class EmailService {
     });
   }
 
+  async sendWorkspaceInvitation(options: {
+    to: string;
+    workspaceName: string;
+    inviterName: string;
+    role: string;
+    token: string;
+  }): Promise<boolean> {
+    const inviteUrl = `${this.appUrl}/invite/accept?token=${options.token}`;
+    
+    return this.sendEmail({
+      to: options.to,
+      subject: `You're invited to join ${options.workspaceName} on RateGuard`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>You've been invited! 🎉</h2>
+          <p><strong>${options.inviterName}</strong> has invited you to join <strong>${options.workspaceName}</strong> on RateGuard.</p>
+          <p>Your role will be: <strong>${options.role}</strong></p>
+          <a href="${inviteUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 8px; margin: 20px 0;">
+            Accept Invitation
+          </a>
+          <p>Or copy and paste this link:</p>
+          <p style="color: #666; word-break: break-all;">${inviteUrl}</p>
+          <p>This invitation expires in 7 days.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px;">If you weren't expecting this invitation, you can safely ignore it.</p>
+        </div>
+      `,
+    });
+  }
+
+  async sendMemberRemovedEmail(email: string, name: string, workspaceName: string): Promise<boolean> {
+    return this.sendEmail({
+      to: email,
+      subject: `You've been removed from ${workspaceName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Workspace Membership Update</h2>
+          <p>Hi ${name},</p>
+          <p>You have been removed from the workspace <strong>${workspaceName}</strong>.</p>
+          <p>If you believe this was a mistake, please contact the workspace administrator.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px;">This is an automated message from RateGuard.</p>
+        </div>
+      `,
+    });
+  }
+
+  async sendOwnershipTransferredEmail(options: {
+    to: string;
+    name: string;
+    workspaceName: string;
+    previousOwner: string;
+  }): Promise<boolean> {
+    return this.sendEmail({
+      to: options.to,
+      subject: `You are now the owner of ${options.workspaceName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Ownership Transferred 🎉</h2>
+          <p>Hi ${options.name},</p>
+          <p><strong>${options.previousOwner}</strong> has transferred ownership of <strong>${options.workspaceName}</strong> to you.</p>
+          <p>As the new owner, you have full control over the workspace including:</p>
+          <ul>
+            <li>Managing members and their roles</li>
+            <li>Workspace settings and configuration</li>
+            <li>Deleting the workspace</li>
+            <li>Transferring ownership to another member</li>
+          </ul>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px;">This is an automated message from RateGuard.</p>
+        </div>
+      `,
+    });
+  }
+
   private stripHtml(html: string): string {
     return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   }

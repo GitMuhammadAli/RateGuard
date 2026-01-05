@@ -7,9 +7,11 @@ import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 
 // System Components
 import { EmailModule } from './system/module/email/email.module';
+import { NotificationModule } from './system/module/notification/notification.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { LoggingInterceptor } from './system/interceptor/logging.interceptor';
 import { HttpExceptionFilter } from './system/filter/http-exception.filter';
@@ -26,15 +28,16 @@ import { HttpExceptionFilter } from './system/filter/http-exception.filter';
     // Database
     DatabaseModule,
 
-    // Email (Global)
+    // System Modules (Global)
     EmailModule,
+    NotificationModule,
 
     // Feature Modules
     AuthModule,
     UserModule,
+    WorkspaceModule,
 
     // TODO: Add more modules as needed
-    // WorkspacesModule,
     // ApiKeysModule,
     // RateLimitsModule,
     // UpstreamsModule,

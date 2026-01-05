@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { EmailService } from '../../system/module/email/email.service';
+import { Role } from '@prisma/client';
 import {
   RegisterDto,
   LoginDto,
@@ -99,7 +100,7 @@ export class AuthService {
           members: {
             create: {
               userId: user.id,
-              role: 'owner',
+              role: Role.OWNER,
             },
           },
         },
@@ -417,7 +418,7 @@ export class AuthService {
       where: { id: userId },
       include: {
         ownedWorkspaces: { take: 1, orderBy: { createdAt: 'asc' } },
-        workspaces: { include: { workspace: true } },
+        workspaceMembers: { include: { workspace: true } },
       },
     });
 
@@ -433,7 +434,7 @@ export class AuthService {
       emailVerified: user.emailVerified,
       mfaEnabled: user.mfaEnabled,
       createdAt: user.createdAt,
-      workspaces: user.workspaces.map((wm) => ({
+      workspaces: user.workspaceMembers.map((wm) => ({
         id: wm.workspace.id,
         name: wm.workspace.name,
         slug: wm.workspace.slug,
@@ -473,7 +474,14 @@ export class AuthService {
     const tokenHash = this.hashToken(refreshToken);
 
     await this.prisma.session.create({
-      data: { userId, refreshToken: tokenHash, expiresAt, ipAddress, userAgent },
+      data: { 
+        userId, 
+        refreshToken: tokenHash, 
+        tokenFamily: crypto.randomUUID(),
+        expiresAt, 
+        ipAddress, 
+        userAgent,
+      },
     });
 
     return { accessToken, refreshToken, expiresIn: this.parseExpiresIn(accessExpiresIn) };
@@ -501,15 +509,15 @@ export class AuthService {
   private async logAuditEvent(
     userId: string | null,
     action: string,
-    resource: string,
+    resourceType: string,
     resourceId: string,
-    details: object,
+    metadata: object,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<void> {
     try {
       await this.prisma.auditLog.create({
-        data: { userId, action, resource, resourceId, details, ipAddress, userAgent },
+        data: { userId, action, resourceType, resourceId, metadata, ipAddress, userAgent },
       });
     } catch (error) {
       this.logger.error('Failed to log audit event', error);
